@@ -1,0 +1,1 @@
+"""NewsPulse backend package."""
