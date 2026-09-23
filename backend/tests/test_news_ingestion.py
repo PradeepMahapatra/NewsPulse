@@ -50,7 +50,11 @@ def test_missing_optional_fields_are_safe_and_missing_url_is_skipped() -> None:
 
 def test_duplicate_detection_uses_article_url() -> None:
     payload = {"news": [{"title": "Headline", "url": "https://example.com"}]}
-    service = NewsIngestionService(make_client(payload))
+    class RecordingRepository:
+        def save_articles(self, articles: list) -> list:
+            return articles
+
+    service = NewsIngestionService(make_client(payload), repository=RecordingRepository())
 
     assert len(service.fetch_latest_news()) == 1
     assert service.fetch_latest_news() == []

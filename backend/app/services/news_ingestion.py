@@ -173,9 +173,16 @@ class ArticleDeduplicator:
 
 
 class NewsIngestionService:
-    def __init__(self, client: CurrentsAPIClient | None = None) -> None:
+    def __init__(self, client: CurrentsAPIClient | None = None, repository: Any = None) -> None:
         self._client = client or CurrentsAPIClient()
+        if repository is None:
+            from backend.app.database.repository import ArticleRepository
+
+            repository = ArticleRepository()
+        self._repository = repository
         self._deduplicator = ArticleDeduplicator()
 
     def fetch_latest_news(self, limit: int = 10) -> list[NewsArticle]:
-        return self._deduplicator.unique_articles(self._client.fetch_latest_news(limit))
+        articles = self._deduplicator.unique_articles(self._client.fetch_latest_news(limit))
+        self._repository.save_articles(articles)
+        return articles

@@ -2,7 +2,7 @@
 
 NewsPulse is being built as a real-time multilingual news sentiment analytics platform.
 
-The project is being developed incrementally. Phase 2 currently contains a Currents API ingestion layer in addition to the independently runnable FastAPI and Streamlit shells.
+The project is being developed incrementally. Phase 3 adds PostgreSQL persistence to the Currents API ingestion layer; the FastAPI and Streamlit shells remain independently runnable.
 
 ## Local setup
 
@@ -33,6 +33,16 @@ cp .env.example .env
 
 Set `CURRENTS_API_KEY` in `.env`. The file is ignored by Git, and the key is never returned by the API or written to logs.
 
+## PostgreSQL with Neon
+
+Create a free Neon project and copy its pooled PostgreSQL connection string from the Neon dashboard. Set it locally in `.env` as `DATABASE_URL`. Never put the connection string in `.env.example`, source control, tests, or logs. The `.env` file must never be committed.
+
+Initialize the schema from the project root:
+
+```bash
+python -m backend.app.database.init_db
+```
+
 ## Run the backend
 
 From the project root:
@@ -45,10 +55,10 @@ The API is available at <http://127.0.0.1:8000/>. Interactive API documentation 
 
 ## Test news ingestion
 
-Run the mocked ingestion tests from the project root:
+Run the tests from the project root:
 
 ```bash
-pytest backend/tests -q
+pytest -q
 ```
 
 With the API server running and a valid `CURRENTS_API_KEY` configured, request a small batch of current articles:
@@ -57,7 +67,13 @@ With the API server running and a valid `CURRENTS_API_KEY` configured, request a
 curl "http://127.0.0.1:8000/articles/fetch?limit=5"
 ```
 
-The endpoint fetches articles from Currents, normalizes them into NewsPulse's internal article shape, removes duplicates for the in-memory service instance, and returns JSON. It does not store data in PostgreSQL, perform NLP or sentiment analysis, schedule requests, or call AWS services. PostgreSQL persistence is planned for Phase 3.
+The endpoint fetches articles from Currents, normalizes them, removes duplicates within the ingestion run, and stores them in PostgreSQL. Retrieve persisted records with:
+
+```bash
+curl "http://127.0.0.1:8000/articles?limit=20"
+```
+
+Repeated articles are ignored using Currents article ID and URL uniqueness constraints. This phase does not perform NLP or sentiment analysis, schedule requests, or call AWS services.
 
 ## Run the dashboard
 
