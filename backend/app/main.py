@@ -7,12 +7,13 @@ from backend.app.services.news_ingestion import (
     NewsIngestionError,
     NewsIngestionService,
 )
-from backend.app.routers import articles, health
+from backend.app.routers import articles, health, snapshots
 
 
 app = FastAPI(title="NewsPulse API")
 app.include_router(health.router)
 app.include_router(articles.router)
+app.include_router(snapshots.router)
 
 
 def get_ingestion_service() -> NewsIngestionService:

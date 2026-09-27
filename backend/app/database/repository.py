@@ -100,6 +100,16 @@ class ArticleRepository:
                 )
             )
 
+    def list_all_articles(self) -> list[ArticleRecord]:
+        with self._session_factory() as session:
+            return list(
+                session.scalars(
+                    select(ArticleRecord).order_by(
+                        ArticleRecord.published_at.desc().nullslast(), ArticleRecord.id.desc()
+                    )
+                )
+            )
+
     def list_unanalyzed_articles(self, limit: int = 100) -> list[ArticleRecord]:
         if limit < 1 or limit > 200:
             raise ValueError("limit must be between 1 and 200")

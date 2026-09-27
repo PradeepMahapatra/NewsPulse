@@ -153,3 +153,50 @@ Dashboard tests run with:
 ```bash
 pytest -q dashboard/tests
 ```
+
+## Phase 7 AWS integration
+
+Phase 7 adds small, optional AWS integration without replacing Neon PostgreSQL, FastAPI, or Streamlit:
+
+```text
+Neon PostgreSQL -> FastAPI snapshot service -> private S3 snapshots
+									  -> Lambda payload handler -> private S3
+```
+
+S3 stores safe article/NLP JSON snapshots under `newspulse/snapshots/YYYY/MM/DD/`. The API endpoint is `POST /articles/snapshot`; it reads existing article records, excludes database internals and credentials, and returns the bucket name, object key, article count, and timestamp. The Lambda entry point is `backend.lambda_handler.handler`. It accepts a small payload such as `{"snapshot_type": "articles", "articles": []}` and does not connect to Neon or load the transformer model.
+
+Required non-secret settings are `AWS_REGION` and `S3_BUCKET_NAME`. They may be placed in local `.env`; AWS access keys must not be placed in `.env`, source code, tests, or this repository. boto3 uses the standard AWS credential provider chain, such as an AWS CLI profile or an attached runtime role. Configure local credentials with the AWS CLI or another supported local mechanism without sharing credential values in chat.
+
+The policy in `docs/iam/news-pulse-snapshot-lambda-policy.json` grants only `s3:PutObject` on `newspulse/snapshots/*` in the configured bucket. It does not grant bucket administration, public access, reads, deletes, or `s3:*`. S3 objects are written with private default ACL behavior and AES-256 server-side encryption. Lambda logs safe invocation, validation, count, key, and failure information through its normal CloudWatch log stream; no detailed monitoring or custom paid observability is enabled.
+
+No AWS resources are created by the local application or test suite. Before creating a bucket, Lambda function, IAM role, or other AWS resource, review the AWS Free Tier, credits, and Billing console. S3 storage/requests, Lambda invocations, CloudWatch logs, and IAM-related setup can incur charges outside applicable allowances. Keep snapshots tiny and use a billing alert or budget according to the account's current pricing and budget terms.
+
+AWS tests use mocked clients:
+
+```bash
+pytest -q backend/tests/test_snapshot.py backend/tests/test_api_snapshot.py
+```
+
+The optional API endpoint requires an already-created private bucket and valid standard-chain AWS credentials. For this development setup, AWS CLI authentication is used locally through the CLI login/profile provider; the Python dependency uses `boto3[crt]` so boto3 can consume that provider. The configured deployment region is `ap-south-1`.
+
+The real Phase 7 development resources are one private S3 bucket following `newspulse-<account-id>-ap-south-1`, one `newspulse-phase7-snapshot` Lambda function, one `NewsPulsePhase7LambdaRole` execution role, and the Lambda-created `/aws/lambda/newspulse-phase7-snapshot` CloudWatch log group. Neon remains the database; no AWS database or application hosting resources are used.
+
+To invoke the deployed Lambda with a tiny local payload, use a file containing only safe article data and the standard AWS CLI credential provider:
+
+```bash
+aws lambda invoke --function-name newspulse-phase7-snapshot \
+	--cli-binary-format raw-in-base64-out \
+	--payload fileb://event.json response.json
+```
+
+To clean up the Phase 7 development resources after review, first empty the bucket and then delete the Lambda, inline role policy, role, and bucket. Verify each name against the AWS console before running cleanup:
+
+```bash
+aws s3 rm s3://newspulse-<account-id>-ap-south-1 --recursive
+aws lambda delete-function --function-name newspulse-phase7-snapshot
+aws iam delete-role-policy --role-name NewsPulsePhase7LambdaRole --policy-name NewsPulsePhase7LambdaPolicy
+aws iam delete-role --role-name NewsPulsePhase7LambdaRole
+aws s3api delete-bucket --bucket newspulse-<account-id>-ap-south-1
+```
+
+CloudWatch log retention and deletion can be managed separately with the AWS console or `aws logs delete-log-group --log-group-name /aws/lambda/newspulse-phase7-snapshot` after confirming the log group belongs to this project.
