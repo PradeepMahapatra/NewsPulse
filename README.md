@@ -90,6 +90,43 @@ Retrieve the enriched records with `GET /articles`; NLP fields are nullable unti
 
 Currents language metadata is normalized when it is a supported code. When metadata is absent or unsupported, the service uses deterministic lightweight `langdetect` fallback detection; empty text is recorded as a failed analysis rather than sent to the model. Articles are not automatically translated. The classifier was trained for Twitter sentiment, not specifically for news, so its output is an inference signal rather than a guarantee of news sentiment accuracy. It may require a large first download and local disk space.
 
+## FastAPI architecture
+
+The backend uses a small layered REST API:
+
+```text
+routers -> article service -> repository -> SQLAlchemy/PostgreSQL
+						 -> ingestion and NLP services
+```
+
+`backend/app/main.py` creates the FastAPI application and registers the health and article routers. Pydantic response schemas define the public API contract, while repositories keep database access behind short-lived SQLAlchemy sessions. The existing ingestion and NLP services remain responsible for Currents normalization, duplicate handling, language detection, and sentiment analysis.
+
+Available endpoints:
+
+- `GET /` - API liveness response
+- `GET /health` - simple health response
+- `GET /articles` - list articles with `limit`, `offset`, `sentiment`, `language`, and `category` query parameters
+- `GET /articles/{article_id}` - retrieve one stored article
+- `POST /articles/fetch` - fetch and persist current news, returning `fetched`, `inserted`, and `duplicates`
+- `POST /articles/analyze` - analyze unprocessed articles, returning `processed`, `skipped`, and `failed`
+
+Interactive OpenAPI documentation is available at `/docs`; the machine-readable schema is at `/openapi.json`. For example, `GET /articles?limit=20&offset=0&language=en` returns an `articles` array whose entries include stored article fields and nullable NLP fields: `language_detected`, `analysis_text`, `sentiment_label`, `sentiment_confidence`, and `analyzed_at`.
+
+Run the API from the project root with:
+
+```bash
+source .venv/bin/activate
+uvicorn backend.app.main:app --reload
+```
+
+Phase 5 keeps the current unversioned paths because the application is still a small single API surface; introducing `/api/v1` would add routing overhead without a second public contract to support yet.
+
+Run all backend tests with:
+
+```bash
+pytest -q
+```
+
 ## Run the dashboard
 
 From the project root, in a separate terminal:

@@ -64,14 +64,38 @@ class ArticleRepository:
             session.commit()
             return records
 
-    def list_articles(self, limit: int = 100) -> list[ArticleRecord]:
+    def get_article(self, currents_id: str) -> ArticleRecord | None:
+        with self._session_factory() as session:
+            return session.scalar(
+                select(ArticleRecord).where(ArticleRecord.currents_id == currents_id)
+            )
+
+    def list_articles(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        *,
+        sentiment: str | None = None,
+        language: str | None = None,
+        category: str | None = None,
+    ) -> list[ArticleRecord]:
         if limit < 1 or limit > 200:
             raise ValueError("limit must be between 1 and 200")
+        if offset < 0:
+            raise ValueError("offset must be zero or greater")
         with self._session_factory() as session:
+            query = select(ArticleRecord)
+            if sentiment is not None:
+                query = query.where(ArticleRecord.sentiment_label == sentiment)
+            if language is not None:
+                query = query.where(ArticleRecord.language == language)
+            if category is not None:
+                query = query.where(ArticleRecord.category == category)
             return list(
                 session.scalars(
-                    select(ArticleRecord)
+                    query
                     .order_by(ArticleRecord.published_at.desc().nullslast(), ArticleRecord.id.desc())
+                    .offset(offset)
                     .limit(limit)
                 )
             )

@@ -7,9 +7,12 @@ from backend.app.services.news_ingestion import (
     NewsIngestionError,
     NewsIngestionService,
 )
+from backend.app.routers import articles, health
 
 
 app = FastAPI(title="NewsPulse API")
+app.include_router(health.router)
+app.include_router(articles.router)
 
 
 def get_ingestion_service() -> NewsIngestionService:
@@ -24,12 +27,11 @@ def get_nlp_service() -> NLPService:
     return NLPService(get_article_repository(), get_shared_analyzer())
 
 
-@app.get("/")
+@app.get("/", summary="Confirm the API is running")
 def read_root() -> dict[str, str]:
     return {"message": "NewsPulse is running"}
 
 
-@app.get("/articles/fetch")
 def fetch_articles(limit: int = 10) -> dict[str, object]:
     try:
         articles = get_ingestion_service().fetch_latest_news(limit)
@@ -38,7 +40,6 @@ def fetch_articles(limit: int = 10) -> dict[str, object]:
     return {"articles": [article.model_dump(mode="json") for article in articles]}
 
 
-@app.get("/articles")
 def list_articles(limit: int = 100) -> dict[str, object]:
     try:
         articles = get_article_repository().list_articles(limit)
@@ -68,7 +69,6 @@ def list_articles(limit: int = 100) -> dict[str, object]:
     ]}
 
 
-@app.post("/articles/analyze")
 def analyze_articles(limit: int = 100) -> dict[str, int]:
     try:
         return get_nlp_service().analyze_articles(limit)

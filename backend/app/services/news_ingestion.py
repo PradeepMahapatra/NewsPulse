@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -26,6 +27,20 @@ class NewsAuthenticationError(NewsIngestionError):
 
 class NewsRateLimitError(NewsIngestionError):
     """Raised when Currents rate-limits the request."""
+
+
+@dataclass(frozen=True)
+class NewsIngestionResult:
+    articles: list["NewsArticle"]
+    inserted: int
+
+    @property
+    def fetched(self) -> int:
+        return len(self.articles)
+
+    @property
+    def duplicates(self) -> int:
+        return self.fetched - self.inserted
 
 
 class NewsArticle(BaseModel):
@@ -183,6 +198,9 @@ class NewsIngestionService:
         self._deduplicator = ArticleDeduplicator()
 
     def fetch_latest_news(self, limit: int = 10) -> list[NewsArticle]:
+        return self.fetch_latest_news_with_stats(limit).articles
+
+    def fetch_latest_news_with_stats(self, limit: int = 10) -> NewsIngestionResult:
         articles = self._deduplicator.unique_articles(self._client.fetch_latest_news(limit))
-        self._repository.save_articles(articles)
-        return articles
+        inserted = len(self._repository.save_articles(articles))
+        return NewsIngestionResult(articles=articles, inserted=inserted)
