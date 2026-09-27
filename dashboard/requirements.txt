@@ -1,1 +1,6 @@
 streamlit
+httpx
+pandas
+plotly
+pycountry
+python-dotenv

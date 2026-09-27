@@ -127,14 +127,29 @@ Run all backend tests with:
 pytest -q
 ```
 
-## Run the dashboard
+## Phase 6 Streamlit dashboard
 
-From the project root, in a separate terminal:
+The dashboard consumes the FastAPI REST API over HTTP. It never connects directly to PostgreSQL and only needs `API_BASE_URL`; database credentials and the Currents API key remain backend-only settings.
+
+Start the backend in one terminal:
+
+```bash
+source .venv/bin/activate
+uvicorn backend.app.main:app --reload
+```
+
+Start Streamlit in a second terminal:
 
 ```bash
 streamlit run dashboard/app.py
 ```
 
-The dashboard opens at the local URL shown by Streamlit, usually <http://localhost:8501>.
+The dashboard opens at the local URL shown by Streamlit, usually <http://localhost:8501>. Configure another local API URL with `API_BASE_URL` in `.env`; the default is `http://127.0.0.1:8000`.
 
-The backend and dashboard are currently independent. The dashboard does not call the backend yet; that integration will be added in a later phase.
+The dashboard provides sentiment, language, country, and category filters; article-volume KPIs; sentiment and language charts; a country-level choropleth; recent article links; article details; manual refresh; and controls that call the existing `/articles/fetch` and `/articles/analyze` endpoints. Countries are mapped only when the API supplies a valid ISO alpha-2 country code; missing country metadata is excluded rather than assigned a location. The dashboard uses the API's current article snapshot, so it does not continuously poll or cache stale records.
+
+Dashboard tests run with:
+
+```bash
+pytest -q dashboard/tests
+```
