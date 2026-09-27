@@ -1,5 +1,7 @@
 from collections.abc import Iterable
 
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -73,3 +75,37 @@ class ArticleRepository:
                     .limit(limit)
                 )
             )
+
+    def list_unanalyzed_articles(self, limit: int = 100) -> list[ArticleRecord]:
+        if limit < 1 or limit > 200:
+            raise ValueError("limit must be between 1 and 200")
+        with self._session_factory() as session:
+            return list(
+                session.scalars(
+                    select(ArticleRecord)
+                    .where(ArticleRecord.analyzed_at.is_(None))
+                    .order_by(ArticleRecord.id)
+                    .limit(limit)
+                )
+            )
+
+    def update_analysis(
+        self,
+        article_id: int,
+        *,
+        language_detected: str,
+        analysis_text: str,
+        sentiment_label: str,
+        sentiment_confidence: float,
+        analyzed_at: datetime,
+    ) -> None:
+        with self._session_factory() as session:
+            article = session.get(ArticleRecord, article_id)
+            if article is None:
+                raise ValueError("article not found")
+            article.language_detected = language_detected
+            article.analysis_text = analysis_text
+            article.sentiment_label = sentiment_label
+            article.sentiment_confidence = sentiment_confidence
+            article.analyzed_at = analyzed_at
+            session.commit()

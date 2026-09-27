@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 
 from backend.app.database.config import DatabaseConfigurationError
 from backend.app.database.repository import ArticleRepository
+from backend.app.services.nlp_service import NLPService, get_shared_analyzer
 from backend.app.services.news_ingestion import (
     NewsIngestionError,
     NewsIngestionService,
@@ -17,6 +18,10 @@ def get_ingestion_service() -> NewsIngestionService:
 
 def get_article_repository() -> ArticleRepository:
     return ArticleRepository()
+
+
+def get_nlp_service() -> NLPService:
+    return NLPService(get_article_repository(), get_shared_analyzer())
 
 
 @app.get("/")
@@ -53,6 +58,19 @@ def list_articles(limit: int = 100) -> dict[str, object]:
             "category": article.category,
             "image": article.image,
             "created_at": article.created_at,
+            "language_detected": article.language_detected,
+            "analysis_text": article.analysis_text,
+            "sentiment_label": article.sentiment_label,
+            "sentiment_confidence": article.sentiment_confidence,
+            "analyzed_at": article.analyzed_at,
         }
         for article in articles
     ]}
+
+
+@app.post("/articles/analyze")
+def analyze_articles(limit: int = 100) -> dict[str, int]:
+    try:
+        return get_nlp_service().analyze_articles(limit)
+    except (DatabaseConfigurationError, ValueError) as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error

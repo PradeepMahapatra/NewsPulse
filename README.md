@@ -75,6 +75,21 @@ curl "http://127.0.0.1:8000/articles?limit=20"
 
 Repeated articles are ignored using Currents article ID and URL uniqueness constraints. This phase does not perform NLP or sentiment analysis, schedule requests, or call AWS services.
 
+## Phase 4 NLP and sentiment analysis
+
+Stored articles can be enriched locally with the Hugging Face model `cardiffnlp/twitter-xlm-roberta-base-sentiment`. The model is multilingual, does not require an API key, and returns one of `positive`, `neutral`, or `negative` with the model probability as its confidence score. The model is loaded lazily once per application process and reused across analysis requests.
+
+Initialize the additive NLP columns for an existing database, then analyze unprocessed articles:
+
+```bash
+python -m backend.app.database.init_db
+curl -X POST "http://127.0.0.1:8000/articles/analyze?limit=20"
+```
+
+Retrieve the enriched records with `GET /articles`; NLP fields are nullable until processing succeeds: `language_detected`, `analysis_text`, `sentiment_label`, `sentiment_confidence`, and `analyzed_at`.
+
+Currents language metadata is normalized when it is a supported code. When metadata is absent or unsupported, the service uses deterministic lightweight `langdetect` fallback detection; empty text is recorded as a failed analysis rather than sent to the model. Articles are not automatically translated. The classifier was trained for Twitter sentiment, not specifically for news, so its output is an inference signal rather than a guarantee of news sentiment accuracy. It may require a large first download and local disk space.
+
 ## Run the dashboard
 
 From the project root, in a separate terminal:

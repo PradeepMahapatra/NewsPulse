@@ -5,3 +5,7 @@ python-dotenv
 pytest
 SQLAlchemy>=2.0,<3.0
 psycopg[binary]>=3.1,<4.0
+transformers>=4.45,<5.0
+torch>=2.2,<3.0
+sentencepiece>=0.2,<1.0
+langdetect>=1.0.9,<2.0
