@@ -200,3 +200,34 @@ aws s3api delete-bucket --bucket newspulse-<account-id>-ap-south-1
 ```
 
 CloudWatch log retention and deletion can be managed separately with the AWS console or `aws logs delete-log-group --log-group-name /aws/lambda/newspulse-phase7-snapshot` after confirming the log group belongs to this project.
+
+## Phase 8 Docker containers
+
+Docker packages the application layer only. Neon PostgreSQL, Currents, S3, Lambda, and CloudWatch remain external services reached through runtime configuration; no database or AWS service is placed inside a container.
+
+The backend image uses Python 3.12 and starts `backend.app.main:app` with Uvicorn on container port `8000`. Its Dockerfile installs the CPU-only Torch wheel because the container has no GPU and does not need CUDA packages; the required Hugging Face model and sentiment architecture are unchanged. The dashboard image uses Python 3.12 and starts `dashboard/app.py` with Streamlit on container port `8501`. Both Dockerfiles use the repository root as their build context so the existing Python package paths remain valid.
+
+Build the local images from the project root:
+
+```bash
+docker build -f backend/Dockerfile -t newspulse-backend .
+docker build -f dashboard/Dockerfile -t newspulse-dashboard .
+```
+
+Run the backend with the existing external-service settings supplied at runtime. Do not use `COPY .env` or put secrets in a Dockerfile:
+
+```bash
+docker network create newspulse-net
+docker run --rm --name backend --network newspulse-net --env-file .env -p 8000:8000 newspulse-backend
+```
+
+Run the dashboard on the same Docker network. Inside a container, `localhost` means that container, so the dashboard must use the backend service/container name rather than `127.0.0.1`:
+
+```bash
+docker run --rm --name dashboard --network newspulse-net \
+	-e API_BASE_URL=http://backend:8000 -p 8501:8501 newspulse-dashboard
+```
+
+The backend is available from the host at <http://127.0.0.1:8000/docs>; the dashboard is available at <http://127.0.0.1:8501>. Required backend runtime variables include `DATABASE_URL`, `CURRENTS_API_KEY`, `AWS_REGION`, and `S3_BUCKET_NAME`; the dashboard needs only `API_BASE_URL`. These values are passed at runtime and are never embedded in images. The root `.dockerignore` excludes `.env`, virtual environments, Git metadata, caches, bytecode, and local artifacts while retaining application source and requirements.
+
+This phase does not add Docker Compose, CI/CD, deployment, or production infrastructure. Inspect local images with `docker images` and `docker inspect`; do not use `docker history` or logs to share secret-bearing command lines.
